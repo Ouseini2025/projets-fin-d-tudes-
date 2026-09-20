@@ -1,0 +1,17 @@
+"""customers sales credits payments
+
+Revision ID: 20260920_03
+Revises: 20260920_02
+"""
+from alembic import op
+import sqlalchemy as sa
+revision='20260920_03';down_revision='20260920_02';branch_labels=None;depends_on=None
+def upgrade():
+ u=sa.Uuid(); n=lambda:sa.Numeric(14,2)
+ op.create_table('customers',sa.Column('id',u,primary_key=True),sa.Column('company_id',u,sa.ForeignKey('companies.id'),nullable=False),sa.Column('first_name',sa.String(80),nullable=False),sa.Column('last_name',sa.String(80),nullable=False),sa.Column('phone',sa.String(40),nullable=False),sa.Column('email',sa.String(255)),sa.Column('address',sa.Text()),sa.Column('notes',sa.Text()),sa.Column('is_active',sa.Boolean(),nullable=False),sa.Column('created_at',sa.DateTime(timezone=True),server_default=sa.text('CURRENT_TIMESTAMP')),sa.Column('updated_at',sa.DateTime(timezone=True),server_default=sa.text('CURRENT_TIMESTAMP')));op.create_index('ix_customers_company_id','customers',['company_id']);op.create_index('ix_customers_phone','customers',['phone'])
+ op.create_table('sales',sa.Column('id',u,primary_key=True),sa.Column('company_id',u,sa.ForeignKey('companies.id'),nullable=False),sa.Column('customer_id',u,sa.ForeignKey('customers.id')),sa.Column('user_id',u,sa.ForeignKey('users.id'),nullable=False),sa.Column('sale_number',sa.String(40),unique=True,nullable=False),sa.Column('subtotal',n(),nullable=False),sa.Column('discount',n(),nullable=False),sa.Column('total',n(),nullable=False),sa.Column('amount_paid',n(),nullable=False),sa.Column('payment_status',sa.String(30),nullable=False),sa.Column('payment_method',sa.String(30),nullable=False),sa.Column('created_at',sa.DateTime(timezone=True),server_default=sa.text('CURRENT_TIMESTAMP')))
+ op.create_table('sale_items',sa.Column('id',u,primary_key=True),sa.Column('sale_id',u,sa.ForeignKey('sales.id'),nullable=False),sa.Column('product_id',u,sa.ForeignKey('products.id'),nullable=False),sa.Column('quantity',sa.Integer(),nullable=False),sa.Column('unit_price',n(),nullable=False),sa.Column('discount',n(),nullable=False),sa.Column('subtotal',n(),nullable=False),sa.Column('created_at',sa.DateTime(timezone=True),server_default=sa.text('CURRENT_TIMESTAMP')))
+ op.create_table('credits',sa.Column('id',u,primary_key=True),sa.Column('company_id',u,sa.ForeignKey('companies.id'),nullable=False),sa.Column('customer_id',u,sa.ForeignKey('customers.id'),nullable=False),sa.Column('sale_id',u,sa.ForeignKey('sales.id'),unique=True,nullable=False),sa.Column('original_amount',n(),nullable=False),sa.Column('amount_paid',n(),nullable=False),sa.Column('remaining_amount',n(),nullable=False),sa.Column('due_date',sa.Date()),sa.Column('status',sa.String(30),nullable=False),sa.Column('created_at',sa.DateTime(timezone=True),server_default=sa.text('CURRENT_TIMESTAMP')))
+ op.create_table('payments',sa.Column('id',u,primary_key=True),sa.Column('company_id',u,sa.ForeignKey('companies.id'),nullable=False),sa.Column('credit_id',u,sa.ForeignKey('credits.id'),nullable=False),sa.Column('customer_id',u,sa.ForeignKey('customers.id'),nullable=False),sa.Column('user_id',u,sa.ForeignKey('users.id'),nullable=False),sa.Column('amount',n(),nullable=False),sa.Column('payment_method',sa.String(30),nullable=False),sa.Column('reference',sa.String(100)),sa.Column('notes',sa.Text()),sa.Column('created_at',sa.DateTime(timezone=True),server_default=sa.text('CURRENT_TIMESTAMP')))
+def downgrade():
+ op.drop_table('payments');op.drop_table('credits');op.drop_table('sale_items');op.drop_table('sales');op.drop_table('customers')
