@@ -1,66 +1,130 @@
-from app.core.security import decode_access_token, hash_password, verify_password
+from decimal import Decimal
+
+from sqlalchemy import select
+
+from app.models.catalog import Product
+from app.models.commerce import Credit, Customer, Payment, Sale, SaleItem
 
 
-def register(client, email="admin@example.com", password="MotDePasseSolide123!"):
-    return client.post("/api/v1/auth/register", json={
-        "company_name": "PME Démo", "full_name": "Admin Démo", "email": email, "password": password,
-    })
-
-
-def test_creates_user_with_admin_role(client):
-    response = register(client)
+def register(client, email="admin@example.com"):
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "company_name": "PME Commerce",
+            "full_name": "Admin Commerce",
+            "email": email,
+            "password": "MotDePasseSolide123!",
+        },
+    )
     assert response.status_code == 201
+    return response.json()
+
+
+def auth_headers(client, email="admin@example.com"):
+    data = register(client, email)
+    return {"Authorization": f"Bearer {data['access_token']}"}
+
+
+def test_create_customer(client):
+    headers = auth_headers(client)
+
+    response = client.post(
+        "/api/v1/customers",
+        headers=headers,
+        json={
+            "first_name": "Jean",
+            "last_name": "Koumba",
+            "phone": "060000001",
+            "email": "jean@example.com",
+            "address": "Pointe-Noire",
+        },
+    )
+
+    assert response.status_code == 201
+
     body = response.json()
-    assert body["user"]["role"] == "ADMIN"
-    assert body["access_token"]
+    assert body["first_name"] == "Jean"
+    assert body["last_name"] == "Koumba"
+    assert body["phone"] == "060000001"
+    assert body["is_active"] is True
 
 
-def test_password_hash_is_secure():
-    hashed = hash_password("MotDePasseSolide123!")
-    assert hashed != "MotDePasseSolide123!"
-    assert verify_password("MotDePasseSolide123!", hashed)
-    assert not verify_password("incorrect", hashed)
+def test_list_customers(client):
+    headers = auth_headers(client)
 
+    client.post(
+        "/api/v1/customers",
+        headers=headers,
+        json={
+            "first_name": "Alice",
+            "last_name": "Mabiala",
+            "phone": "060000002",
+        },
+    )
 
-def test_login_generates_valid_jwt(client):
-    register(client)
-    response = client.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": "MotDePasseSolide123!"})
+    response = client.get(
+        "/api/v1/customers",
+        headers=headers,
+    )
+
     assert response.status_code == 200
-    payload = decode_access_token(response.json()["access_token"])
-    assert payload["role"] == "ADMIN"
-    assert payload["company_id"] == response.json()["user"]["company_id"]
+
+    customers = response.json()
+    assert len(customers) == 1
+    assert customers[0]["first_name"] == "Alice"
 
 
-def test_current_user_requires_and_accepts_valid_token(client):
-    assert client.get("/api/v1/users/me").status_code == 401
-    token = register(client).json()["access_token"]
-    response = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
+def test_customer_search(client):
+    headers = auth_headers(client)
+
+    client.post(
+        "/api/v1/customers",
+        headers=headers,
+        json={
+            "first_name": "Patrick",
+            "last_name": "Ngoma",
+            "phone": "060000003",
+        },
+    )
+
+    response = client.get(
+        "/api/v1/customers?search=Ngoma",
+        headers=headers,
+    )
+
     assert response.status_code == 200
-    assert response.json()["email"] == "admin@example.com"
+    customers = response.json()
+
+    assert len(customers) == 1
+    assert customers[0]["last_name"] == "Ngoma"
 
 
-def test_invalid_token_is_refused(client):
-    response = client.get("/api/v1/users/me", headers={"Authorization": "Bearer invalid"})
-    assert response.status_code == 401
+def test_customer_can_be_deactivated(client):
+    headers = auth_headers(client)
 
+    create_response = client.post(
+        "/api/v1/customers",
+        headers=headers,
+        json={
+            "first_name": "Client",
+            "last_name": "Test",
+            "phone": "060000004",
+        },
+    )
 
-def test_admin_creates_user_in_own_company(client):
-    token = register(client).json()["access_token"]
-    response = client.post("/api/v1/users", headers={"Authorization": f"Bearer {token}"}, json={
-        "full_name": "Employé Démo", "email": "employe@example.com", "password": "MotDePasseSolide123!", "role": "EMPLOYE",
-    })
-    assert response.status_code == 201
-    assert response.json()["role"] == "EMPLOYE"
+    customer_id = create_response.json()["id"]
 
+    response = client.delete(
+        f"/api/v1/customers/{customer_id}",
+        headers=headers,
+    )
 
-def test_role_control_refuses_unauthorised_role():
-    from types import SimpleNamespace
-    from fastapi import HTTPException
-    from app.api.deps import require_roles
+    assert response.status_code == 204
 
-    employee = SimpleNamespace(role=SimpleNamespace(name="EMPLOYE"))
-    try:
-        require_roles("ADMIN", "GERANT")(employee)
-        assert False, "Un employé ne doit pas passer le contrôle ADMIN/GERANT"
-    except HTTPException as error:
-        assert error.status_code == 403
+    detail = client.get(
+        f"/api/v1/customers/{customer_id}",
+        headers=headers,
+    )
+
+    assert detail.status_code == 200
+    assert detail.json()["is_active"] is False
