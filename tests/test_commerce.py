@@ -1243,7 +1243,7 @@ def test_sales_date_filter(client):
 
         assert response.status_code in (200, 201), response.text
 
-    today = date.today().isoformat()
+    today = response.json()["created_at"][:10]
 
     response = client.get(
         f"/api/v1/sales?date_from={today}&date_to={today}",
@@ -1304,7 +1304,7 @@ def test_credits_date_filter(client):
 
     assert response.status_code in (200, 201), response.text
 
-    today = date.today().isoformat()
+    today = response.json()["created_at"][:10]
 
     response = client.get(
         f"/api/v1/credits?date_from={today}&date_to={today}",
