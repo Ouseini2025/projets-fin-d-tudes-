@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
-
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -52,6 +52,7 @@ class SaleCreate(BaseModel):
 class SaleItemResponse(BaseModel):
     id: UUID
     product_id: UUID
+    product_name: str = ""
     quantity: int
     unit_price: Decimal
     discount: Decimal
@@ -59,6 +60,26 @@ class SaleItemResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def get_product_name(cls, value):
+        product = getattr(value, "product", None)
+
+        if product:
+            data = {
+                "id": value.id,
+                "product_id": value.product_id,
+                "product_name": product.name,
+                "quantity": value.quantity,
+                "unit_price": value.unit_price,
+                "discount": value.discount,
+                "subtotal": value.subtotal,
+                "created_at": value.created_at,
+            }
+            return data
+
+        return value
 
 
 class SaleResponse(BaseModel):
@@ -120,3 +141,4 @@ class CreditResponse(BaseModel):
 
 class CreditDetailResponse(CreditResponse):
     payments: list[PaymentResponse] = Field(default_factory=list)
+

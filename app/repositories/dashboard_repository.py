@@ -218,3 +218,43 @@ class DashboardRepository:
         )
 
         return int(db.scalar(query) or 0)
+
+    def monthly_sales(
+        self,
+        db: Session,
+        company_id: UUID,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[tuple[str, Decimal]]:
+        query = select(
+            Sale.created_at,
+            Sale.total,
+        ).where(
+            Sale.company_id == company_id
+        )
+
+        if date_from:
+            query = query.where(
+                Sale.created_at >= datetime.combine(
+                    date_from,
+                    datetime.min.time(),
+                )
+            )
+
+        if date_to:
+            query = query.where(
+                Sale.created_at < datetime.combine(
+                    date_to,
+                    datetime.min.time(),
+                )
+            )
+
+        query = query.order_by(Sale.created_at.asc())
+        rows = db.execute(query).all()
+
+        monthly: dict[str, Decimal] = {}
+        for created_at, total in rows:
+            month_key = created_at.strftime("%Y-%m")
+            monthly[month_key] = monthly.get(month_key, Decimal("0.00")) + total
+
+        return sorted(monthly.items(), key=lambda item: item[0])

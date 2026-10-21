@@ -6,7 +6,13 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import DbSession, require_roles
-from app.models.commerce import Customer, Credit, Payment, Sale
+from app.models.commerce import (
+    Customer,
+    Credit,
+    Payment,
+    Sale,
+    SaleItem,
+)
 from app.models.user import User
 from app.schemas.commerce import (
     CreditDetailResponse,
@@ -175,7 +181,7 @@ def delete_customer(
 
 @r.get(
     "/sales",
-    response_model=list[SaleResponse],
+    response_model=list[SaleDetailResponse],
 )
 def sales(
     db: DbSession,
@@ -230,6 +236,9 @@ def sales(
         )
 
     q = q.order_by(Sale.created_at.desc())
+    q = q.options(
+    selectinload(Sale.items).selectinload(SaleItem.product)
+)
 
     return db.scalars(q).all()
 
@@ -276,8 +285,10 @@ def get_sale(
 ):
     sale_obj = db.scalar(
         select(Sale)
-        .options(selectinload(Sale.items))
-        .where(
+        .options(
+    selectinload(Sale.items).selectinload(SaleItem.product)
+)
+.where(
             Sale.id == id,
             Sale.company_id == user.company_id,
         )

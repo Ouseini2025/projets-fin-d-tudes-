@@ -1,6 +1,11 @@
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class MonthlyRevenue(BaseModel):
+    month: str
+    revenue: Decimal
 
 
 class DashboardSummary(BaseModel):
@@ -20,3 +25,5 @@ class DashboardSummary(BaseModel):
     stock_value: Decimal
     low_stock_products: int
     out_of_stock_products: int
+
+    revenue_by_month: list[MonthlyRevenue] = Field(default_factory=list)

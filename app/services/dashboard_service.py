@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.repositories.dashboard_repository import DashboardRepository
-from app.schemas.dashboard import DashboardSummary
+from app.schemas.dashboard import DashboardSummary, MonthlyRevenue
 
 
 class DashboardError(Exception):
@@ -121,6 +121,20 @@ class DashboardService:
             total_sales - total_expenses
         )
 
+        monthly_raw = self.repository.monthly_sales(
+            db,
+            company_id,
+            date_from=date_from,
+            date_to=sales_date_to,
+        )
+        revenue_by_month = [
+            MonthlyRevenue(
+                month=month,
+                revenue=self._money(rev),
+            )
+            for month, rev in monthly_raw
+        ]
+
         return DashboardSummary(
             total_sales=total_sales,
             total_expenses=total_expenses,
@@ -134,4 +148,5 @@ class DashboardService:
             stock_value=stock_value,
             low_stock_products=low_stock_products,
             out_of_stock_products=out_of_stock_products,
+            revenue_by_month=revenue_by_month,
         )
